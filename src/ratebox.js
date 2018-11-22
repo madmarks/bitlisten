@@ -1,35 +1,32 @@
 var rateboxTimeout;
 var currentExchange;
 var ratebox_ms = 3000; // 3 second update interval
+var globalRate = -1; // set upon first rate received
+
+function setGlobalRate(rate) {
+    if (globalRate === -1) {
+        var checkbox = $("#showDollarCheckBox");
+        checkbox.prop("disabled", false);
+        checkbox.parent().removeClass("disabled");
+    }
+    $("#rate").html(parseFloat(rate).toFixed(2));
+    globalRate = rate;
+}
 
 rateboxGetRate = function() {
-	if (currentExchange == "bitstamp") {
-		// Thanks to nyg for this trick - https://github.com/nyg/bitstamp-ticker/blob/master/bitstamp.js
-		var api_url = 'https://www.bitstamp.net/api/ticker/';
-		var yql_url = '//query.yahooapis.com/v1/public/yql?q=select%20*%20from%20html%20where%20url%3D"' + api_url + '"&format=json&callback=?';
-		
-        $.getJSON(yql_url, function (jsonp) {
-          var ticker = $.parseJSON(jsonp.query.results.body.p);
-          if (ticker) {
-            $("#rate").html(parseFloat(ticker.last).toFixed(2));
-          } else {
-            rateboxTimeout = setTimeout(rateboxGetRate, ratebox_ms);
-          }
-        });
-      
-	} else {
-		throw "Unrecognized Exchange";
-	}
+	$.getJSON("https://blockchain.info/ticker?cors=true", function(data) {
+        setGlobalRate(data.USD.last);
+    });
 };
 
 $(document).ready(function() {
 	// Bitstamp websocket API
-	var pusher = new Pusher('de504dc5763aeef9ff52');
-	var channel = pusher.subscribe('live_trades');
-	channel.bind('trade', function(ticker) {
-        $("#rate").html(parseFloat(ticker.price).toFixed(2));
+    var pusher = new Pusher('de504dc5763aeef9ff52');
+    var channel = pusher.subscribe('live_trades');
+    channel.bind('trade', function(ticker) {
+        setGlobalRate(ticker.price);
         if (rateboxTimeout) clearTimeout(rateboxTimeout);
-	});
+    });
 });
 
 switchExchange = function(exchangeName) {
